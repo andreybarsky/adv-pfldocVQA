@@ -1,21 +1,12 @@
 # Creating adversarial documents
+The exp_launcher.py file contains all the commands that were launched to obtain the adversarial examples reported in the paper (https://arxiv.org/abs/2512.04554).
 
+If you notice, inside ```exp_launcher.py```, the ```main_exp2.py``` script is always called, which uses ```experiments/exp2.py```.
 
-1. Create the adversarial images
+The useful files are ```experiments/exp2.py``` (which turns out to be the targeted attack with M questions) and ```experiments/exp3.py``` (which turns out to be an untargeted attack aka Denial of Answer (DoA)). 
+From these experiments, you can verify the entire internal functioning of the attack functions.
 
-```bash
-python create_adv_docs.py
+Dataset available here:
 ```
-
-2. Reconstruct the adversarial images to the original shape
-
-```bash
-python reconstruct_adv_docs.py
+https://drive.google.com/file/d/17PDqk8wzqiF1_bggxQhiLSqnVXJz5xJC/view?usp=drive_link
 ```
-
-3. Evaluate the model
-
-```bash
-python evaluate_model.py
-```
-
