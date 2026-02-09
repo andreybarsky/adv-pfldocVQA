@@ -16,6 +16,9 @@ if __name__ == '__main__':
     args = parse_args()
     data_loader = Imdb_Dataloader(args.dataset_path).load_data()
 
+    for kwarg, val in args._get_kwargs():
+        print(f"{kwarg}: {val}")
+
     logger.info(f'Starting Experiment n.2')
 
     processor, autoprocessor, model, attack, mask_function = get_model(args.model, args)
