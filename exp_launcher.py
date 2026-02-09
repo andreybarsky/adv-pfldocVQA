@@ -1,5 +1,6 @@
 import subprocess
 import datetime
+from config import DATAPATH
 
 all_target_answers = ["No answer", "Unclear", "Retry", "Try later", "I won't tell you"]
 n_questions_list = [4,5]
@@ -7,9 +8,12 @@ masks = ["include_all", "bottom_right_corner"]
 SEED = 42
 STEPS_DONUT = 100
 
+# dataset_path = '/home/abarsky/data/advdoc_data_nsampl1000_nqst5.pkl'
+dataset_path = DATAPATH
+
 include_all_pix2struct = {
     "script": "main_exp2.py",
-    "dataset_path": "/home-local/mpintore/github/adv_docVQA/utils/advdoc_data_nsampl1000_nqst5.pkl",
+    "dataset_path": dataset_path,
     "device": "cuda:1",
     "model": "pix2struct",
     "eps": 8,
@@ -21,7 +25,7 @@ include_all_pix2struct = {
 
 patched_pix2struct= {
     "script": "main_exp2.py",
-    "dataset_path": "/home-local/mpintore/adv_docVQA/utils/advdoc_data_nsampl1000_nqst5.pkl",
+    "dataset_path": dataset_path,
     "device": "cuda:0",
     "model": "donut",
     "eps": 96,
@@ -33,7 +37,7 @@ patched_pix2struct= {
 
 include_all_donut = {
     "script": "main_exp2.py",
-    "dataset_path": "/home-local/mpintore/adv_docVQA/utils/advdoc_data_nsampl1000_nqst5.pkl",
+    "dataset_path": dataset_path,
     "device": "cuda:4",
     "model": "donut",
     "eps": 32,
@@ -45,7 +49,7 @@ include_all_donut = {
 
 patched_donut = {
     "script": "main_exp2.py",
-    "dataset_path": "/home-local/mpintore/adv_docVQA/utils/advdoc_data_nsampl1000_nqst5.pkl",
+    "dataset_path": dataset_path,
     "device": "cuda:0",
     "model": "donut",
     "eps": 96,
