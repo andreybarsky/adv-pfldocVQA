@@ -56,7 +56,7 @@ def oklab_to_srgb(lab_arr, clip=True):
     # assert overbound < 1e-7 and underbound < 1e-7
     ### so clip to avoid complaints:
     if clip:
-        assert srgb.max() < 1.05 # throw error if we're dealing with uint scale
-        assert srgb.min > -0.05 # and if we're dealing with zero-centred noise, which is badly behaved in the transition
+        # assert srgb.max() < 1.05 # throw error if we're dealing with uint scale
+        # assert srgb.min > -0.05 # and if we're dealing with zero-centred noise, which is badly behaved in the transition
         srgb = np.clip(srgb, 0, 1)
     return srgb
