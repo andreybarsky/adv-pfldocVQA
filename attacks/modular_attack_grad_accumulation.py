@@ -12,13 +12,16 @@ from secmlt.optimization.constraints import Constraint
 from secmlt.optimization.gradient_processing import GradientProcessing
 from secmlt.optimization.initializer import Initializer
 from secmlt.optimization.optimizer_factory import OptimizerFactory
+from secmlt.optimization.scheduler_factory import LRSchedulerFactory, NoScheduler
 from secmlt.trackers.trackers import Tracker
 from secmlt.utils.tensor_utils import atleast_kd
 from torch.nn import CrossEntropyLoss
-from torch.optim import Optimizer
+from torch.optim import Optimizer, lr_scheduler
 import logging
 import os
 import sys
+
+import numpy as np # why doesn't this work??
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, ROOT)
@@ -41,6 +44,7 @@ class ModularEvasionAttackFixedEps(BaseEvasionAttack):
         step_size: float,
         loss_function: Union[str, torch.nn.Module],
         optimizer_cls: str | partial[Optimizer],
+        scheduler_cls: str | partial[lr_scheduler],
         manipulation_function: Manipulation,
         initializer: Initializer,
         gradient_processing: GradientProcessing,
@@ -96,8 +100,14 @@ class ModularEvasionAttackFixedEps(BaseEvasionAttack):
                 optimizer_cls,
                 lr=step_size,
             )
+        if isinstance(scheduler_cls, str):
+            scheduler_cls = LRSchedulerFactory.create_from_name(
+                scheduler_cls,
+                optimizer_cls=optimizer_cls,
+            )            
 
         self.optimizer_cls = optimizer_cls
+        self.scheduler_cls = scheduler_cls
 
         self._manipulation_function = manipulation_function
         self.initializer = initializer
@@ -188,6 +198,9 @@ class ModularEvasionAttackFixedEps(BaseEvasionAttack):
         labels: torch.Tensor,
         init_deltas: torch.Tensor = None,
         optim_kwargs: dict | None = None,
+        scheduler_kwargs: dict | None = None,
+        autoregressive_monitoring = True, # for debugging
+        teacherforced_monitoring = True,  # slightly more efficient
     ) -> tuple[torch.Tensor, torch.Tensor]:
         if optim_kwargs is None:
             optim_kwargs = {}
@@ -207,33 +220,48 @@ class ModularEvasionAttackFixedEps(BaseEvasionAttack):
         else:
             delta = self.initializer(samples.data)
         delta.requires_grad = True
-
+       
         optimizer = self._create_optimizer(delta, **optim_kwargs)
         x_adv, delta = self.manipulation_function(samples, delta)
-        x_adv.data, delta.data = self.manipulation_function(samples.data, delta.data)
+        
+        # x_adv.data, delta.data = self.manipulation_function(samples.data, delta) # seems unnecessary? at least for additivemanipulation
+
         best_losses = torch.zeros(samples.shape[0]).fill_(torch.inf)
         best_delta = torch.zeros_like(samples)
 
+        if scheduler_kwargs is None:
+            if self.scheduler_cls.func is not NoScheduler:
+                # cosine annealing needs to know the num_steps
+                scheduler_kwargs = {'T_max': self.num_steps}
+                scheduler = self.scheduler_cls(optimizer, **scheduler_kwargs)
+            else:
+                scheduler = self.scheduler_cls(optimizer)
+                # dummy function:
+                scheduler.get_last_lr = lambda : [float(self.step_size)]
+
+        ### for debugging:
+        target_str = [model.auto_processor.decode(l, skip_special_tokens=True) for l in labels]
+
+        
         for i in range(self.num_steps):
+            model.current_step = i
             optimizer.zero_grad()
             #logger.info(">>>>>>> forwarding for each question-target")
             scores, losses = self.forward_loss(model=model, x=x_adv, target=target)
             #logger.info(">>>>>>> END forwarding for each question-target")
-            logger.info(f'{i}. Loss = {losses}')
+            sched_str = f'| lr={scheduler.get_last_lr()[0]:.6f}'
+            logger.info(f'Step {i}/{self.num_steps}. Loss = {losses:.3f}{sched_str}')
+
 
             grad_before_processing = delta.grad.data
-            delta.grad.data = self.gradient_processing(delta.grad.data)
-            optimizer.step()
-            x_adv.data, delta.data = self.manipulation_function(
-                samples.data,
-                delta.data,
-            )
+
+
             if self.trackers is not None:
                 for tracker in self.trackers:
                     tracker.track(
                         i,
-                        losses.detach().cpu().data,
-                        scores.detach().cpu().data,
+                        torch.tensor([losses]), #.detach().cpu().data, # already float
+                        scores.detach().cpu().data, # scores are 0
                         x_adv.detach().cpu().data,
                         delta.detach().cpu().data,
                         grad_before_processing.detach().cpu().data,
@@ -251,8 +279,61 @@ class ModularEvasionAttackFixedEps(BaseEvasionAttack):
                 best_losses.data,
             )
 
+
+            # show autoregressive model output on adv input:
+            if autoregressive_monitoring or teacherforced_monitoring:
+                import numpy as np
+                from PIL import Image
+                from jnd import util as ut
+                print(f'  x_adv quantiles before monitoring: {ut.num_quantiles(x_adv)}')
+                np_img = x_adv.squeeze(0).clamp(0, 255).detach().cpu().numpy().astype(np.uint8)
+
+                # if np.any(np.isnan(np_img)):
+                #     import pdb; pdb.set_trace()
+                
+                adv_image = Image.fromarray(np_img)
+                
+                if autoregressive_monitoring:
+                    ar_output = model.torch_predict(image = adv_image, questions = self.questions)
+                    print(f'Autoregressive output: {ar_output}')
+
+                if teacherforced_monitoring:
+                    tf_output = model.torch_predict_teacher_forced(image = adv_image, 
+                                                                   questions = self.questions, 
+                                                                   # target_answers = [model.auto_processor.decode(l, skip_special_tokens=True) for l in labels])
+                                                                   target_answers=target_str)
+                    print(f'Teacher-forced output: {tf_output}')
+            
             if losses == 0: # TODO: Early stopping - 0 is tailored to the loss used (i.e., margin loss for Donut)
                 break
+            # elif (teacherforced_monitoring) and (tf_output == target_str):
+            #     import pdb; pdb.set_trace(); # decoded answer matches and loss appears to be 0 but no break
+            
+            ### edited: apply manipulation and gradient update AFTER checking loss and logging it on the current delta
+            delta.grad.data = self.gradient_processing(delta.grad.data)
+            optimizer.step()
+            scheduler.step()
+            x_adv, delta.data = self.manipulation_function(
+                samples.data,
+                delta,
+            )
+
+            # if (x_adv.min() < 0) or (x_adv.max() > 255):
+            #     # domain constraint is not working:
+            #     import pdb; pdb.set_trace()
+
+
+
+            print(f'  x_adv quantiles after manip: {ut.num_quantiles(x_adv)}')
+
+                    
+
+                # batch_output_strs = [model.model_processor.decode(o) for o in output_ids]
+                # print(f'Output of DonutAttack.forward_loss (teacher-forced): {batch_output_strs}')
+                                                               
+            
+
             
         x_adv, _ = self.manipulation_function(samples.data, best_delta.data)
+        print(f'  x_adv quantiles after FINAL manip: {ut.num_quantiles(x_adv)}')
         return x_adv, best_delta

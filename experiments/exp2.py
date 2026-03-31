@@ -6,6 +6,8 @@ import random
 from collections import defaultdict
 import logging
 
+import matplotlib.pyplot as plt
+
 from .experiment_base import Experiment, Metrics
 
 logging.basicConfig(
@@ -22,16 +24,41 @@ class Exp2(Experiment):
 
         self.results = defaultdict(dict)
 
-    def create_adv_examples(self):
+    def create_adv_examples(self, 
+                            n=1000, 
+                           ):
         dataset = self.data_loader
         # from itertools import islice
         # dataset = dict(islice(dataset.items(), 5))
+        i = 0
         for key, sample in tqdm(dataset.items(), total=len(dataset), desc="Processed"):
             image = sample["image"]
-            targets = self.args.target_answer
             questions = random.sample(list(sample["questions"].keys()),k=self.n_questions)
+            y_true_set = [sample['questions'][q] for q in questions]
+            y_true = list(y_true_set[0])
+            targets = self.args.target_answer
+            
+            print(f'Sample keys: {sample.keys()}')
+            print(f'Attacking image:')
+            plt.imshow(image); plt.show()
+            
 
-            advx = self.attack(model=self.model,
+            print(f'With question/s:')
+            print(questions)
+
+            print(f'Current answer:')
+            y_pred_ar = self.model.torch_predict(image, questions)
+            y_pred_tf_true = self.model.torch_predict_teacher_forced(image, questions, y_true)            
+            y_pred_tf_adv = self.model.torch_predict_teacher_forced(image, questions, targets)
+            print(f'y_pred_ar: {y_pred_ar}')
+            
+            print(f'\nGround truth answer: {y_true[0]}')
+            print(f'y_pred_forced|{y_true[0]}: {y_pred_tf_true[0]}')
+            
+            print(f'\n Adversarial target answer: {targets[0]}')
+            print(f'y_pred_forced|{targets[0]}: {y_pred_tf_adv[0]}')
+            
+            advx, delta = self.attack(model=self.model,
                               processor=self.processor,
                               auto_processor=self.autoprocessor, # TODO: remove autoprocessor, it is not needed
                               image=image,
@@ -39,7 +66,8 @@ class Exp2(Experiment):
                               targets=targets,
                               is_targeted=True,
                               mask_function=self.mask_function,
-                              args=self.args)
+                              args=self.args,
+                              )
             
             assert image.size == advx.size
             
@@ -49,7 +77,12 @@ class Exp2(Experiment):
             # update the predictions, ground truths and targets
             y_pred = self.model.torch_predict(image, questions)
             y_pred_adv = self.model.torch_predict(advx, questions)
-            print(y_pred, y_pred_adv, flush=True)
+            print(f'Exp2.create_adv_examples.y_pred_clean: {y_pred}')
+            print(f'  Exp2.create_adv_examples.y_pred_adv: {y_pred_adv}')
+
+            if y_pred_adv[0] != targets[0]:
+                # hold up
+                import pdb; pdb.set_trace()
 
             assert key not in self.results.keys(), "Found sample in results"
             self.results[key]["questions"] = tuple(questions)
@@ -57,9 +90,15 @@ class Exp2(Experiment):
             self.results[key]["y_pred"] = tuple(y_pred)
             self.results[key]["y_pred_adv"] = tuple(y_pred_adv)
             self.results[key]["target"] = tuple(targets)
+
+            i += 1
+            if i+1 > n:
+                break
         
         # save the results
         self.save_results(self.results)
+
+        return {'adv_image': advx, 'delta': delta, } # 'answer': answer_str}
 
     def report(self):
         asr, cdmg = 0, 0

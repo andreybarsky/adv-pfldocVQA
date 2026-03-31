@@ -20,7 +20,7 @@ class DonutModelProcessor(DataProcessing):
     """Data processing utility for Donut model."""
 
     def __init__(self) -> None:
-        self.processor = AutoProcessor.from_pretrained("naver-clova-ix/donut-base-finetuned-docvqa")
+        self.processor = AutoProcessor.from_pretrained("naver-clova-ix/donut-base-finetuned-docvqa", use_fast=True)
 
     def _process(self, x: Image, q: str) -> torch.Tensor:
         return self.processor(images=x, text=q, return_tensors="pt")
@@ -174,6 +174,8 @@ class DonutModel(BaseModel):
 
 
     def loss_fn(self, x: torch.Tensor, target_answer_ids: torch.Tensor, question: str):
+        # with teacher-forced (non-autoregressive) output generation
+        
         device = self._get_device()
         processor = self.auto_processor
 
@@ -193,7 +195,9 @@ class DonutModel(BaseModel):
         outputs = self._model(
             pixel_values=x,
             decoder_input_ids=full_decoder_input_ids
-        )
+        ) # teacher-forced!
+
+
         # Loss computation. Recall that the output has the same shape of the tokens provided as input into the decoder, together with the voc_size and the batch size
         total_loss = outputs.logits.sum() * 0.0
         target_answer_ids = target_answer_ids.squeeze(0)
@@ -219,7 +223,10 @@ class DonutModel(BaseModel):
         #                                prompt_ids=prompt_ids,
         #                                outputs=outputs)
 
-        return outputs, total_loss
+        answer_position = prompt_ids.shape[1]-1
+
+        
+        return outputs.logits[:,answer_position:], total_loss
 
     def _debug_token_optimization(self, x, total_loss, target_answer_ids, prompt_ids, outputs):
         processor = self.auto_processor
@@ -277,7 +284,10 @@ class DonutModel(BaseModel):
         x = x.to(device=self._get_device())
         return self._decision_function(x)
 
-    def torch_predict(self, image, questions):
+    # autoregressive text generation conditioned on an image-question pair:
+    def torch_predict(self, 
+                      image, 
+                      questions):
         device = self._get_device()
         auto_processor = self.auto_processor
         
@@ -313,3 +323,48 @@ class DonutModel(BaseModel):
                 print("",flush=True)
 
         return answers
+
+    # teacher-forced generation conditioned on an image-question pair and a target answer:
+    def torch_predict_teacher_forced(self,    image: Image.Image, # or torch tensor of pixel values
+                                          questions: list[str], 
+                                     target_answers: list[str],
+                                    ):
+        device = self._get_device()
+        prompt = self.task_prompt.format(question=questions[0]) # builds prompt string: `<s_docvqa><s_question> ... </s_question><s_answer>`
+        prompt_ids = self.auto_processor.tokenizer(prompt, add_special_tokens=False,
+  return_tensors="pt").input_ids.to(device) # shape [1, P]
+
+        target_str = target_answers[0] + "</s_answer>"
+        target_ids = self.auto_processor.tokenizer(target_str, add_special_tokens=False,
+  return_tensors="pt").input_ids.to(device) # builds target string: `answer</s_answer>` and tokenises to shape [1, T]
+
+        full_decoder_input_ids = torch.cat([prompt_ids, target_ids], dim=1) # concatenated prompt-target tokens, what the decoder sees at every position simultaneously for teacher-forcing
+
+        if not isinstance(image, torch.Tensor):
+            assert isinstance(image, Image.Image)
+            inputs = self.auto_processor(images=[image], return_tensors="pt").to(device) # casts pil image to pixel_values
+        else:
+            inputs = image
+            assert inputs['pixel_values']
+
+        self._model.eval()
+        with torch.no_grad():
+            # single forward pass: encoder takes image, decoder processes full_decoder_input_ids with causal masking
+            outputs = self._model(pixel_values=inputs["pixel_values"], decoder_input_ids=full_decoder_input_ids)
+            # outputs.logits has shape [1, P+T, vocab_size(57532)], each logit at position i predicting token at i+1
+
+        
+        answer_logits = outputs.logits[:, prompt_ids.shape[1]-1:-1] # slice from position P-1 onward, to get logits of generated answer tokens only, excluding unconstrained final token (not part of the loss), even though it's probably just </s> (EOS); has shape [1, T, vocab_size]
+        output_ids = answer_logits.argmax(dim=2)
+
+        output_strs = [self.auto_processor.decode(o, skip_special_tokens=True) for o in output_ids]
+        # skip_special_tokens strips out <s_answer> etc 
+            
+        return output_strs
+        
+
+  # Add this to DonutModel and call them side by side:
+
+  # print("Autoregressive:", model.torch_predict(image, questions))
+  # print("Teacher-forced:", model.torch_predict_teacher_forced(image, questions, ["your target"]))
+

@@ -36,7 +36,8 @@ def rshow(img: np.ndarray,
           normalised=True, 
           dpi=None, 
           figsize=None, 
-          colorbar=False, 
+          colorbar=False,
+          save_as=None, # filepath to save to before showing
           show=True, **kwargs):
     """Function that displays an image at exactly native resolution"""
     if dpi is None:
@@ -74,6 +75,10 @@ def rshow(img: np.ndarray,
     plt.gca().set_title(title)
     if colorbar:
         plt.colorbar()
+
+    if save_as is not None:
+        print(f'Figure saved to: {save_as}')
+        plt.savefig(save_as)
         
     if show:
         plt.show()
@@ -90,6 +95,7 @@ def rshows(imgs: list, # of np.ndarrays
           colorbar: bool=False,
           pad_h: int=80,
           pad_w: int=40,
+          save_as: bool=None, # filepath to save to before showing    
           show: bool=True, **kwargs):
     """as rshow, but for multiple img inputs in a row
     (for in column/s, just use this or rshow sequentially)"""
@@ -138,7 +144,7 @@ def rshows(imgs: list, # of np.ndarrays
         # fig, axes = plt.subplots(1, len(imgs), figsize=figsize, dpi=dpi)
         fig = plt.figure(figsize=(figh, figw), dpi=dpi)
         figh_, figw_ = fig.get_size_inches()
-        print(f'Creating figure of size: ({figh_:.1f},{figw_:.1f}) inches')
+        # print(f'Creating figure of size: ({figh_:.1f},{figw_:.1f}) inches')
         
         
         for i, (img, title) in enumerate(zip(imgs, titles)):
@@ -153,7 +159,7 @@ def rshows(imgs: list, # of np.ndarrays
             b = total_h - imh - pad_h # top aligned
             # b = total_h - pad_h # bottom aligned
             ax_rect = [l/total_w, b/total_h, imw/total_w, imh/total_h]
-            print(f'Adding axis with dimensions (l/b/w/h): {[np.round(a, 3) for a in ax_rect]}')
+            # print(f'Adding axis with dimensions (l/b/w/h): {[np.round(a, 3) for a in ax_rect]}')
             
             assert max(ax_rect) <= 1
             
@@ -183,6 +189,10 @@ def rshows(imgs: list, # of np.ndarrays
     plt.suptitle(suptitle)
     if colorbar:
         plt.colorbar()
+
+    if save_as is not None:
+        print(f'Figure saved to: {save_as}')
+        plt.savefig(save_as)
         
     if show:
         plt.show()
