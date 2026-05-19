@@ -72,12 +72,17 @@ class Pix2StructModel(BaseModel):
     """Wrapper for the DocVQA PyTorch model."""
 
     def __init__(self, device="cpu") -> None:
+        model_name = "google/pix2struct-docvqa-base"
         self._model: torch.nn.Module = (
             Pix2StructForConditionalGeneration.from_pretrained(
-                "google/pix2struct-docvqa-base",
+                model_name,
             )
         ).to(device)
         self.model_processor = Pix2StructModelProcessor()
+
+        # is this needed??
+        self.auto_processor = AutoProcessor.from_pretrained(model_name, use_fast=True)
+
         super().__init__()
 
     def _get_device(self) -> torch.device:

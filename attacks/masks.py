@@ -46,15 +46,15 @@ def mask_sobel(image: torch.Tensor, threshold=0.1):
     # stack across all three channels:
     return torch.stack([edge_mask]*3, -1)
 
-def mask_canny(image: torch.Tensor, threshold=0.1):
-    edges = canny(image)
-    edge_mask = (edges > threshold)
+# def mask_canny(image: torch.Tensor, threshold=0.1):
+#     edges = canny(image)
+#     edge_mask = (edges > threshold)
 
-    ratio = edge_mask.sum() / torch.prod(torch.tensor(edge_mask.shape))
-    print(f'Canny mask computed over image with threshold={threshold} resulting in mask ratio={ratio:.3f}')
+#     ratio = edge_mask.sum() / torch.prod(torch.tensor(edge_mask.shape))
+#     print(f'Canny mask computed over image with threshold={threshold} resulting in mask ratio={ratio:.3f}')
 
-    # stack across all three channels:
-    return torch.stack([edge_mask]*3, -1)
+#     # stack across all three channels:
+#     return torch.stack([edge_mask]*3, -1)
 
 def mask_robust_sobel(image: torch.Tensor, 
                       threshold=0.1, # if not None, binarise at this threshold

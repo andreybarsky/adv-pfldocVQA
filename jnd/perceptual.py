@@ -78,12 +78,11 @@ class PerceptualAdditiveManipulation(Manipulation):
         # lab_delta: [1, 2200, 1700, 3]
 
         # domain constraint in RGB space:
-        print(f'x_adv_rgb quantiles before domain constraint: {ut.num_quantiles(x_adv_rgb)}')
+        # print(f'x_adv_rgb quantiles before domain constraint: {ut.num_quantiles(x_adv_rgb)}')
 
-        print(f'Applying PerceptualAdditiveManipulation domain constraints: {self._domain_constraints}')
-
+        # print(f'Applying PerceptualAdditiveManipulation domain constraints: {self._domain_constraints}')
         x_adv_rgb.data = self._apply_domain_constraints(x_adv_rgb.data)
-        print(f'x_adv_rgb quantiles after domain constraint: {ut.num_quantiles(x_adv_rgb)}')
+        # print(f'x_adv_rgb quantiles after domain constraint: {ut.num_quantiles(x_adv_rgb)}')
 
         ### compute delta in rgb space:
         rgb_delta = x_adv_rgb.data - self.x_clean_rgb.data
@@ -156,15 +155,15 @@ class AdditiveManipulation(Manipulation):
 
 
         x_adv, delta = self._apply_manipulation(x, delta)
-        print(f'x_adv quantiles before domain constraint: {ut.num_quantiles(x_adv)}')
+        # print(f'x_adv quantiles before domain constraint: {ut.num_quantiles(x_adv)}')
 
-        print(f'Applying AdditiveManipulation domain constraints: {self._domain_constraints}')
+        # print(f'Applying AdditiveManipulation domain constraints: {self._domain_constraints}')
 
         x_adv.data = self._apply_domain_constraints(x_adv.data)
-        print(f'x_adv quantiles after domain constraint: {ut.num_quantiles(x_adv)}\n')
+        # print(f'x_adv quantiles after domain constraint: {ut.num_quantiles(x_adv)}\n')
         
         delta.data = x_adv.data - x.data
-        print(f'delta quantiles after domain constraint: {ut.num_quantiles(delta)}')
+        # print(f'delta quantiles after domain constraint: {ut.num_quantiles(delta)}')
         return x_adv, delta
 
 

@@ -153,7 +153,8 @@ class Pix2StructImageProcessor:
         input_data_format: Optional[Union[str, ChildProcessError]] = None, 
         **kwargs  
         ):
-        if image_tensor.dim() == 4:
+        # if image_tensor.dim() == 4:
+        while image_tensor.dim() >= 4:
             image_tensor = image_tensor.squeeze(0)
         image_tensor = image_tensor.permute(2, 0, 1)
         C, H, W  = image_tensor.shape

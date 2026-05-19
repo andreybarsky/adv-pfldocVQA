@@ -1,4 +1,6 @@
-from attacks.masks import mask_include_all, mask_exclude_white, mask_bottom_right_corner, mask_sobel, mask_sobel_blue, mask_sobel_red, mask_sobel_chromatic, mask_edge_channelwise, mask_robust_sobel
+from attacks.masks import (mask_include_all, mask_exclude_white, mask_bottom_right_corner, 
+                           mask_sobel, mask_sobel_blue, mask_sobel_red, mask_sobel_chromatic, 
+                           mask_edge_channelwise, mask_robust_sobel)
 
 DATAPATH = '/home/abarsky/data/advdoc_data_nsampl1000_nqst5.pkl'
 MODEL_NAMES = ['pix2struct','donut']

@@ -39,6 +39,6 @@ class QuantizationConstraintWithMask(QuantizationConstraint):
         """Apply the quantization."""
         transformed_x = x.detach().clone()
         if self.mask is None:
-            self.mask = torch.ones_like(x)
+            self.mask = torch.ones_like(x).bool().unsqueeze(0)
         transformed_x = super().__call__(transformed_x)
         return torch.where(self.mask, transformed_x, x)

@@ -199,8 +199,8 @@ class ModularEvasionAttackFixedEps(BaseEvasionAttack):
         init_deltas: torch.Tensor = None,
         optim_kwargs: dict | None = None,
         scheduler_kwargs: dict | None = None,
-        autoregressive_monitoring = True, # for debugging
-        teacherforced_monitoring = True,  # slightly more efficient
+        autoregressive_monitoring = False, # for costly debugging
+        teacherforced_monitoring = True,  # for less costly debugging
     ) -> tuple[torch.Tensor, torch.Tensor]:
         if optim_kwargs is None:
             optim_kwargs = {}

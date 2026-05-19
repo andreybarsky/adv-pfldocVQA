@@ -46,17 +46,20 @@ class Exp2(Experiment):
             print(f'With question/s:')
             print(questions)
 
-            print(f'Current answer:')
-            y_pred_ar = self.model.torch_predict(image, questions)
-            y_pred_tf_true = self.model.torch_predict_teacher_forced(image, questions, y_true)            
-            y_pred_tf_adv = self.model.torch_predict_teacher_forced(image, questions, targets)
-            print(f'y_pred_ar: {y_pred_ar}')
-            
-            print(f'\nGround truth answer: {y_true[0]}')
-            print(f'y_pred_forced|{y_true[0]}: {y_pred_tf_true[0]}')
-            
-            print(f'\n Adversarial target answer: {targets[0]}')
-            print(f'y_pred_forced|{targets[0]}: {y_pred_tf_adv[0]}')
+            try:
+                print(f'Current answer:')
+                y_pred_ar = self.model.torch_predict(image, questions)
+                y_pred_tf_true = self.model.torch_predict_teacher_forced(image, questions, y_true)            
+                y_pred_tf_adv = self.model.torch_predict_teacher_forced(image, questions, targets)
+                print(f'y_pred_ar: {y_pred_ar}')
+                
+                print(f'\nGround truth answer: {y_true[0]}')
+                print(f'y_pred_forced|{y_true[0]}: {y_pred_tf_true[0]}')
+                
+                print(f'\n Adversarial target answer: {targets[0]}')
+                print(f'y_pred_forced|{targets[0]}: {y_pred_tf_adv[0]}')
+            except:
+                pass
             
             advx, delta = self.attack(model=self.model,
                               processor=self.processor,

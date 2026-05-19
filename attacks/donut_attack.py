@@ -156,9 +156,11 @@ def attack_donut(
         # the hard mask itself stays boolean so we don't break the quantization by accident:
         # the soft mask is the same but without thresholding applied:
         soft_mask_kwargs = {k:v for k,v in args.mask_kwargs.items() if k!='threshold'}
+
+        print(f' ++ creating HARD MASK')
         perturbation_mask = mask_function(input_tensor, threshold=0, **soft_mask_kwargs)
 
-        
+        print(f' ++ creating SOFT MASK')
         soft_perturbation_mask = mask_function(input_tensor, threshold=None, **soft_mask_kwargs)
     
         perturbation_constraints = [
@@ -166,11 +168,13 @@ def attack_donut(
             # LInfConstraint(radius=float(args.eps)),
             PerPixelSymmetricConstraint(soft_perturbation_mask, eps=float(args.eps)),
             ]
+        qc_mask = None
         
     else:
         # hard mask, acts as the boolean surface for the fixed epsilon threshold
         perturbation_mask = mask_function(input_tensor, **args.mask_kwargs)
-    
+        # qc_mask = perturbation_mask.unsqueeze(0)
+        qc_mask = None # for perceptual attack we must re-quantize after the lab-rgb conversion
         perturbation_constraints = [
             MaskConstraint(mask=perturbation_mask),
             LInfConstraint(radius=float(args.eps)),
@@ -180,7 +184,8 @@ def attack_donut(
     domain_constraints = [
             # ClipConstraint(0, 255), # is this needed??
             QuantizationConstraintWithMask(
-                mask=perturbation_mask.unsqueeze(0),
+                # mask=perturbation_mask.unsqueeze(0),
+                mask=qc_mask,
                 levels=torch.arange(0, 256),
             ),
         ]    
@@ -213,6 +218,8 @@ def attack_donut(
         questions = questions,
         trackers = tensorboard_tracker,
     )
+
+    print(f"{input_tensor.shape=}")    
     test_loader = DataLoader(TensorDataset(input_tensor.unsqueeze(0), labels))
 
     native_adv_ds = attack(model, test_loader)
